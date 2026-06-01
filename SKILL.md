@@ -1,13 +1,13 @@
 ---
 name: n8n-self-hosting-onboard
-description: Use when installing, configuring, upgrading, or verifying a self-hosted n8n Docker Compose setup, including n8n alone or the n8n AI starter kit with Postgres, Ollama, and Qdrant. Collects environment, access, persistence, security, and AI runtime requirements before creating .env files, compose files, or running Docker commands.
+description: Use when installing, configuring, upgrading, or verifying a self-hosted n8n Docker Compose setup, including n8n alone or the n8n AI starter kit with Postgres, Ollama, and Qdrant. Also covers exposing an existing n8n for remote access over Tailscale (Serve for private tailnet HTTPS, Funnel only when external webhooks are required). Collects environment, access, persistence, security, and AI runtime requirements before creating .env files, compose files, or running Docker commands.
 ---
 
 # n8n Self Hosting Onboard
 
 ## Purpose
 
-Install and verify n8n self-hosting setups with Docker Compose. Favor a small, safe default for local use, and add production hardening only when the user needs remote access, webhooks, teams, or durable operation.
+Install and verify n8n self-hosting setups with Docker Compose. Favor a small, safe default for local use, and add production hardening only when the user needs remote access, webhooks, teams, or durable operation. For remote access, prefer Tailscale over a public reverse proxy: Tailscale Serve gives valid HTTPS and a stable hostname inside the private tailnet with no domain, certificates, or public exposure. Reach for Tailscale Funnel only when an external SaaS must reach a webhook, and treat it as deliberate public exposure.
 
 ## Intake
 
@@ -16,7 +16,7 @@ Ask only for missing information that changes the install. Use reasonable defaul
 Minimum intake:
 
 1. Install path: where repo or compose files should live.
-2. Access mode: local only, LAN, private tunnel, or public domain.
+2. Access mode: local only, LAN, Tailscale private (Serve), or Tailscale public webhook (Funnel).
 3. Host environment: macOS, Linux, Windows WSL, NAS, VPS, or cloud VM; note Apple Silicon.
 4. Stack shape: n8n only, n8n + Postgres, or AI starter kit with Postgres + Ollama + Qdrant.
 5. AI runtime: no AI, Docker Ollama, host Ollama, or external LLM API.
@@ -32,13 +32,14 @@ Recommended intake:
 - Backup expectations: none, manual, scheduled local dump, or off-host backup.
 - SMTP need: password reset, invitations, and notifications.
 
-Remote/public intake:
+Remote access intake (Tailscale):
 
-- Canonical URL, for example `https://n8n.example.com`.
-- Reverse proxy or tunnel: Caddy, Traefik, Nginx Proxy Manager, Cloudflare Tunnel, Tailscale, or existing ingress.
-- TLS responsibility: proxy-managed, platform-managed, or not yet configured.
-- Webhook requirement: required for external SaaS callbacks or not.
-- Extra access controls: basic auth, IP allowlist, VPN-only, SSO, or n8n user management only.
+- Webhook requirement: does an external SaaS need to call back into n8n? If no, Serve is enough; if yes, Funnel is required and means public exposure.
+- Tailscale presence: is Tailscale already installed and logged in on the host (`tailscale status`), or does it need setup?
+- Tailscale placement: install on the host (default for macOS, Linux, VPS), or run as a Docker sidecar when the host cannot run Tailscale (some NAS, restricted hosts).
+- Tailnet hostname: confirm the machine name and tailnet so the canonical URL `https://<machine>.<tailnet>.ts.net` is known; MagicDNS must be enabled.
+- Funnel eligibility (only if webhooks needed): tailnet ACL/policy permits Funnel, and the user accepts public reachability of the n8n endpoint.
+- Extra access controls: rely on n8n user management plus tailnet ACLs; for Funnel, confirm whether basic auth or IP-independent controls are also wanted.
 
 ## Defaults
 
@@ -58,6 +59,15 @@ For n8n-only local installs:
 - Use n8n with Postgres unless the user explicitly wants SQLite.
 - Avoid exposing Postgres ports by default.
 - Keep binary data on filesystem via `N8N_DEFAULT_BINARY_DATA_MODE=filesystem`.
+- Record where the encryption key is backed up; treat it as the single most important value to retain.
+
+For Tailscale remote access:
+
+- Default to Tailscale Serve (private tailnet HTTPS). Do not use Funnel unless an external webhook requires it.
+- Keep n8n bound to localhost or the Docker network; let Tailscale terminate TLS and proxy to `5678`. Do not publish `5678` to `0.0.0.0`.
+- Use the MagicDNS hostname `https://<machine>.<tailnet>.ts.net` as the canonical URL; let Tailscale provision the certificate.
+- Set `N8N_HOST`, `N8N_PROTOCOL=https`, `WEBHOOK_URL=https://<machine>.<tailnet>.ts.net/`, and `N8N_PROXY_HOPS=1` so n8n trusts the forwarded TLS headers.
+- Prefer host-installed Tailscale; use a Docker sidecar only when the host cannot run Tailscale.
 
 ## Workflow
 
@@ -69,14 +79,14 @@ For n8n-only local installs:
 2. Decide stack.
    - Local AI starter kit: clone or update `n8n-io/self-hosted-ai-starter-kit`.
    - Existing project: read current compose/env before editing.
-   - Production/public: plan proxy, URL, webhook URL, backup, and version pinning before running containers.
+   - Remote access: plan Tailscale Serve (or Funnel if external webhooks are needed), the `ts.net` URL, webhook URL, backup, and version pinning before running containers.
 
 3. Create configuration.
    - Create `.env` from `.env.example` when available.
    - Replace demo secrets; never keep `password`, `super-secret-key`, or `even-more-secret`.
    - Preserve existing `N8N_ENCRYPTION_KEY` when data already exists. Changing it can make credentials unreadable.
    - Set `GENERIC_TIMEZONE` or `TZ` when the compose file supports it; otherwise note the gap.
-   - For public access, set `N8N_HOST`, `N8N_PROTOCOL=https`, and `WEBHOOK_URL` when supported by the compose pattern.
+   - For Tailscale remote access, set `N8N_HOST=<machine>.<tailnet>.ts.net`, `N8N_PROTOCOL=https`, `WEBHOOK_URL=https://<machine>.<tailnet>.ts.net/`, and `N8N_PROXY_HOPS=1`; keep n8n on `5678` unpublished to the public interface and let Tailscale proxy to it.
 
 4. Start services.
    - Use the smallest applicable command, usually `docker compose up -d`.
@@ -88,13 +98,15 @@ For n8n-only local installs:
    - `curl -I` or `curl -L` reaches n8n setup or signin.
    - For Ollama, `/api/tags` lists the expected model or model pull is still in progress.
    - Check recent logs for n8n startup, database connection, and obvious errors.
+   - For Tailscale, confirm `tailscale serve status` maps the `ts.net` host to `5678`, then reach `https://<machine>.<tailnet>.ts.net/setup` from another tailnet device. For Funnel, confirm `tailscale funnel status` and that the webhook URL responds from outside the tailnet.
 
 6. Report concise handoff.
-   - Access URL.
+   - Access URL: `http://localhost:5678` for local, or `https://<machine>.<tailnet>.ts.net` for Tailscale.
    - Install path.
    - Start, stop, status, and logs commands.
-   - Secrets/persistence location without printing full secrets.
-   - Remaining production gaps, especially HTTPS, backups, upgrades, and public exposure.
+   - Secrets/persistence location without printing full secrets, and confirmation that the encryption key is backed up off-host.
+   - Backup status: how to dump the database and where the encryption key is stored; flag if no backup exists yet.
+   - Remaining production gaps, especially backups, upgrades, and whether Funnel (public exposure) is active.
 
 ## Commands
 
@@ -122,16 +134,66 @@ Operations:
 docker compose up -d
 docker compose down
 docker compose logs -f n8n
+
+# Upgrade: back up first (see Backup and restore), then pull and recreate
 docker compose pull && docker compose up -d
 ```
+
+Tailscale remote access (host-installed Tailscale):
+
+```bash
+# One-time, if not already on the tailnet
+tailscale up
+
+# Identify the canonical URL (MagicDNS must be enabled)
+tailscale status --json | jq -r '.Self.DNSName'   # -> machine.tailnet.ts.net.
+
+# Private tailnet HTTPS (default) — proxy ts.net :443 to local n8n :5678
+tailscale serve --bg 5678
+tailscale serve status
+
+# Public webhook exposure (ONLY when an external SaaS must call in)
+tailscale funnel --bg 5678
+tailscale funnel status
+
+# Stop exposure
+tailscale serve --https=443 off
+tailscale funnel --https=443 off
+```
+
+After enabling Serve/Funnel, set `WEBHOOK_URL` and `N8N_HOST` to the `ts.net` host and restart n8n so generated webhook URLs match.
+
+Backup and restore:
+
+```bash
+# Postgres logical dump (n8n + Postgres / AI starter kit). User and db come from .env.
+docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
+  > n8n-db-$(date +%F).sql
+
+# Restore a dump into a running, empty Postgres
+cat n8n-db-<date>.sql | docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB"
+
+# Back up the encryption key OFF-host (password manager / secret store) — required to read credentials
+grep '^N8N_ENCRYPTION_KEY=' .env
+
+# SQLite-only installs: snapshot the n8n data volume instead of pg_dump
+docker run --rm -v <n8n_data_volume>:/data -v "$PWD":/backup alpine \
+  tar czf /backup/n8n-data-$(date +%F).tgz -C /data .
+```
+
+A complete backup is the database dump (or data-volume snapshot) **plus** the encryption key stored separately. Restoring the database without the original key leaves saved credentials undecryptable.
 
 ## Safety Rules
 
 - Never overwrite an existing `.env` without reading it first.
 - Never regenerate `N8N_ENCRYPTION_KEY` for an existing install unless the user explicitly accepts credential loss.
+- Back up `N8N_ENCRYPTION_KEY` to a location separate from the install directory (password manager or secret store). Losing it makes every stored credential unreadable even with a full database backup, so a database dump alone is not a sufficient backup.
+- Take a backup (database dump plus encryption key) before any upgrade or any change that touches `.env` secrets.
 - Never run `docker compose down -v`, remove volumes, or delete install directories as part of ordinary install/upgrade.
 - Do not expose Postgres, Qdrant, or Ollama publicly unless the user explicitly asks and security controls are planned.
-- For public n8n, require HTTPS and a correct `WEBHOOK_URL` before claiming webhook readiness.
+- For remote n8n, require HTTPS and a correct `WEBHOOK_URL` before claiming webhook readiness; with Tailscale Serve the `ts.net` HTTPS endpoint satisfies this inside the tailnet.
+- Default remote access to Tailscale Serve (private tailnet). Never enable Tailscale Funnel without explicit user confirmation — Funnel publishes n8n to the public internet, so treat it like opening a public port.
+- Do not publish n8n's `5678` to `0.0.0.0` when fronting it with Tailscale; let Tailscale proxy to localhost or the Docker network.
 - For production, prefer pinned image tags over `latest` and call out backup gaps.
 
 ## Troubleshooting
@@ -142,3 +204,9 @@ docker compose pull && docker compose up -d
 - Port conflict: adjust host-side port mapping, then update the handoff URL.
 - Mac performance is poor with Docker Ollama: install Ollama on the host and set `OLLAMA_HOST=host.docker.internal:11434`.
 - Python task runner warning in n8n image: note it if seen; it is usually not blocking for standard JS workflows.
+- Tailscale `ts.net` URL not resolving: MagicDNS must be enabled in the tailnet admin console; without it, fall back to the tailnet IP (`100.x.y.z:5678`).
+- Webhooks show `localhost` or a wrong host: `WEBHOOK_URL`/`N8N_HOST` were not updated to the `ts.net` host; fix the env and restart n8n.
+- n8n login loop or "secure cookie" errors behind Tailscale Serve: ensure `N8N_PROTOCOL=https` and `N8N_PROXY_HOPS=1` so n8n trusts the forwarded TLS.
+- External SaaS webhook never fires while only Serve is enabled: Serve is tailnet-private; the callback needs Funnel (public) — confirm with the user before enabling.
+- `tailscale serve` fails with HTTPS/cert error: enable HTTPS certificates for the tailnet and confirm the node is logged in (`tailscale status`).
+- After a restore, credentials fail to decrypt or workflows error on saved auth: the restored database was paired with a different `N8N_ENCRYPTION_KEY`. Set `.env` back to the original key and restart; the key must match the dump.
