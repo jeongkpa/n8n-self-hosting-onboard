@@ -15,56 +15,83 @@ Always run an onboarding checkpoint before creating files, editing `.env`, cloni
 
 The onboarding checkpoint is mandatory for new installs and for any request that says "set up", "install", "configure", "self-host", or similar. It may be skipped only when the user has already provided all minimum intake values in the current conversation, or when the user explicitly says to use defaults without asking questions.
 
-Ask the minimum intake as numbered choices, not as a free-form checklist. Each onboarding item must offer exactly three numbered options (`1`, `2`, `3`) with option `1` as the recommended default when a default is safe. Use short labels and one-line tradeoffs. If an item has more than three real variants, put the less common variants behind option `3` as "custom/advanced" and ask one follow-up after the user selects it. Keep recommended intake optional unless it changes the requested install, but include Tailscale/webhook choices in the choices because access mode changes security and URL configuration. Do not guess about external exposure, destructive overwrite, or existing data.
+Run the onboarding as a Korean, one-question-at-a-time conversation. Do not show all eight questions at once. For each question:
 
-When defaults are appropriate, ask in this shape before proceeding:
+- Ask in Korean using simple, beginner-friendly wording.
+- Show exactly three numbered choices: `1`, `2`, `3`.
+- Put the safest recommended default as `1` when possible.
+- Ask the user to type only `1`, `2`, or `3`.
+- Wait for the user's answer before asking the next question.
+- After receiving `1`, `2`, or `3`, briefly confirm what that choice means in Korean, then move to the next question.
+- If the user enters anything else, explain that only `1`, `2`, or `3` is needed and ask the same question again.
+- If option `3` means custom/advanced/public exposure/existing data, ask the necessary follow-up question immediately after the user selects `3`, then continue.
+
+Do not ask for all answers in a combined format like `1-1, 2-2, ...`. Do not present a full checklist for the user to edit. Keep recommended intake optional unless it changes the requested install, but include Tailscale/webhook choices because access mode changes security and URL configuration. Do not guess about external exposure, destructive overwrite, or existing data.
+
+Use this one-question style:
 
 ```text
-Before I create files or run Docker, choose one option for each item.
-Reply like: 1-1, 2-2, 3-1, 4-1, 5-1, 6-1, 7-1, 8-2
+설치 전에 몇 가지를 하나씩 고를게요. 숫자만 입력하면 됩니다.
 
-1. Install path
-   1) <default path> (recommended)
-   2) ~/docker/n8n
-   3) Custom path
+1/8. n8n 파일을 어디에 둘까요?
+1. /Users/fran/n8n-self-hosting - 기본 위치라 가장 무난합니다
+2. ~/docker/n8n - Docker 관련 폴더를 따로 모으고 싶을 때 좋습니다
+3. 직접 입력 - 원하는 경로가 있으면 다음에 물어볼게요
 
-2. Access mode
-   1) Local only: http://localhost:5678 (recommended)
-   2) Tailscale Serve: private HTTPS inside tailnet
-   3) Public webhook/LAN/custom: requires a follow-up security check
-
-3. Host environment
-   1) <detected OS/hardware> (recommended)
-   2) Remote Linux/VPS
-   3) NAS/Windows WSL/custom
-
-4. Stack
-   1) n8n + Postgres (recommended)
-   2) n8n only
-   3) AI starter kit: Postgres + Ollama + Qdrant
-
-5. AI runtime
-   1) No AI (recommended)
-   2) Host Ollama or external LLM API
-   3) Docker Ollama
-
-6. Ports
-   1) Defaults: n8n 5678, Ollama 11434, Qdrant 6333 (recommended)
-   2) Change n8n port only
-   3) Custom all relevant ports
-
-7. Secrets
-   1) Auto-generate strong secrets (recommended)
-   2) I will provide secrets
-   3) Preserve existing .env secrets
-
-8. Backup expectation
-   1) Manual backup instructions after install (recommended)
-   2) Scheduled local backup
-   3) Off-host backup plan
+번호만 입력해 주세요: 1, 2, 3
 ```
 
-If the user replies with option numbers, resolve the selections and proceed without asking the same questions again. If the user picks a `custom`, `advanced`, public exposure, or existing-secret option, ask only the necessary follow-up question(s) for those selected items.
+Onboarding question sequence and Korean prompts:
+
+1. Install path
+   - Prompt: "1/8. n8n 파일을 어디에 둘까요?"
+   - `1`: default install path, usually `/Users/fran/n8n-self-hosting` on this host.
+   - `2`: `~/docker/n8n`.
+   - `3`: custom path; follow up in Korean: "사용할 전체 경로를 입력해 주세요."
+
+2. Access mode
+   - Prompt: "2/8. n8n에 어떻게 접속할까요?"
+   - `1`: local only, `http://localhost:5678`; recommended for private local use.
+   - `2`: Tailscale Serve, private HTTPS inside the user's tailnet.
+   - `3`: public webhook, LAN, or custom exposure; follow up in Korean to choose LAN vs Tailscale Funnel/public webhook vs other, and warn that public exposure needs extra security.
+
+3. Host environment
+   - Prompt: "3/8. 어디에 설치하나요?"
+   - `1`: detected local host, for example macOS arm64 / Apple Silicon.
+   - `2`: remote Linux server or VPS.
+   - `3`: NAS, Windows WSL, or custom; follow up in Korean for the exact host type.
+
+4. Stack shape
+   - Prompt: "4/8. 어떤 구성으로 설치할까요?"
+   - `1`: n8n + Postgres; recommended durable default.
+   - `2`: n8n only; simpler but less durable if SQLite is used.
+   - `3`: AI starter kit with Postgres + Ollama + Qdrant.
+
+5. AI runtime
+   - Prompt: "5/8. AI 기능도 같이 준비할까요?"
+   - `1`: no AI runtime; recommended unless the user needs local AI workflows.
+   - `2`: host Ollama or external LLM API; follow up in Korean to choose host Ollama vs external LLM API.
+   - `3`: Docker Ollama.
+
+6. Ports
+   - Prompt: "6/8. 포트 번호는 어떻게 할까요?"
+   - `1`: defaults: n8n `5678`, Ollama `11434`, Qdrant `6333`.
+   - `2`: change only the n8n port; follow up in Korean for the n8n port.
+   - `3`: custom all relevant ports; follow up in Korean for all ports used by the selected stack.
+
+7. Secrets
+   - Prompt: "7/8. 비밀번호와 암호화 키는 어떻게 만들까요?"
+   - `1`: auto-generate strong secrets; recommended for new installs.
+   - `2`: user provides secrets; follow up in Korean for how they want to provide them.
+   - `3`: preserve existing `.env` secrets; only valid for existing installs, and must read existing `.env` before editing.
+
+8. Backup expectation
+   - Prompt: "8/8. 백업은 어느 정도로 준비할까요?"
+   - `1`: manual backup instructions after install.
+   - `2`: scheduled local backup; follow up in Korean for schedule/location.
+   - `3`: off-host backup plan; follow up in Korean for destination or preferred service.
+
+After all answers are collected, summarize the selected plan in Korean and ask for one final confirmation before creating files, editing `.env`, cloning repositories, or running Docker/Tailscale commands. If the user confirms, proceed without asking the same onboarding questions again.
 
 Minimum intake:
 
@@ -125,8 +152,9 @@ For Tailscale remote access:
 ## Workflow
 
 1. Run the mandatory onboarding checkpoint.
-   - Present the minimum intake as numbered `1/2/3` choices with proposed defaults.
-   - Wait for confirmation or corrections before creating files, cloning repositories, writing `.env`, or running Docker/Tailscale commands.
+   - Ask the minimum intake in Korean, one question at a time, with `1/2/3` choices.
+   - Wait for the user's numeric answer before asking the next onboarding question.
+   - After all answers are collected, summarize the plan in Korean and ask for final confirmation before creating files, cloning repositories, writing `.env`, or running Docker/Tailscale commands.
    - If the user already supplied all minimum intake values or explicitly asked to use defaults without questions, state that the checkpoint is satisfied and proceed.
 
 2. Inspect existing state.
