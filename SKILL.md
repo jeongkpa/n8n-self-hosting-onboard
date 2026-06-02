@@ -11,7 +11,28 @@ Install and verify n8n self-hosting setups with Docker Compose. Favor a small, s
 
 ## Intake
 
-Ask only for missing information that changes the install. Use reasonable defaults for low-risk local installs, but do not guess about external exposure, destructive overwrite, or existing data.
+Always run an onboarding checkpoint before creating files, editing `.env`, cloning repositories, or running Docker/Tailscale commands. Do not silently choose a local-only setup just because it is safe. If a reasonable default exists, present it as the proposed answer and ask the user to confirm or change it.
+
+The onboarding checkpoint is mandatory for new installs and for any request that says "set up", "install", "configure", "self-host", or similar. It may be skipped only when the user has already provided all minimum intake values in the current conversation, or when the user explicitly says to use defaults without asking questions.
+
+Ask the minimum intake as a compact checklist. Keep recommended intake optional unless it changes the requested install, but include Tailscale/webhook choices in the checklist because access mode changes security and URL configuration. Do not guess about external exposure, destructive overwrite, or existing data.
+
+When defaults are appropriate, ask in this shape before proceeding:
+
+```text
+Before I create files or run Docker, confirm these choices or edit any item:
+
+1. Install path: <default path>
+2. Access mode: local only / LAN / Tailscale Serve / Tailscale Funnel
+3. Host environment: <detected OS/hardware>
+4. Stack: n8n + Postgres / n8n only / AI starter kit
+5. AI runtime: no AI / Docker Ollama / host Ollama / external LLM API
+6. Ports: n8n 5678, Ollama 11434, Qdrant 6333
+7. Secrets: auto-generate / user-provided
+8. Backup expectation: none yet / manual / scheduled / off-host
+```
+
+If the user confirms the checklist, proceed without asking the same questions again.
 
 Minimum intake:
 
@@ -71,36 +92,41 @@ For Tailscale remote access:
 
 ## Workflow
 
-1. Inspect existing state.
+1. Run the mandatory onboarding checkpoint.
+   - Present the minimum intake checklist with proposed defaults.
+   - Wait for confirmation or corrections before creating files, cloning repositories, writing `.env`, or running Docker/Tailscale commands.
+   - If the user already supplied all minimum intake values or explicitly asked to use defaults without questions, state that the checkpoint is satisfied and proceed.
+
+2. Inspect existing state.
    - Check whether the install path exists and whether it is empty, a git repo, or contains compose volumes/config.
    - Run `docker --version` and `docker compose version`.
    - Check port availability when using defaults.
 
-2. Decide stack.
+3. Decide stack.
    - Local AI starter kit: clone or update `n8n-io/self-hosted-ai-starter-kit`.
    - Existing project: read current compose/env before editing.
    - Remote access: plan Tailscale Serve (or Funnel if external webhooks are needed), the `ts.net` URL, webhook URL, backup, and version pinning before running containers.
 
-3. Create configuration.
+4. Create configuration.
    - Create `.env` from `.env.example` when available.
    - Replace demo secrets; never keep `password`, `super-secret-key`, or `even-more-secret`.
    - Preserve existing `N8N_ENCRYPTION_KEY` when data already exists. Changing it can make credentials unreadable.
    - Set `GENERIC_TIMEZONE` or `TZ` when the compose file supports it; otherwise note the gap.
    - For Tailscale remote access, set `N8N_HOST=<machine>.<tailnet>.ts.net`, `N8N_PROTOCOL=https`, `WEBHOOK_URL=https://<machine>.<tailnet>.ts.net/`, and `N8N_PROXY_HOPS=1`; keep n8n on `5678` unpublished to the public interface and let Tailscale proxy to it.
 
-4. Start services.
+5. Start services.
    - Use the smallest applicable command, usually `docker compose up -d`.
    - For the AI starter kit, include the selected profile: `cpu`, `gpu-nvidia`, or `gpu-amd`.
    - Do not run destructive cleanup commands unless the user explicitly asks to reset data.
 
-5. Verify.
+6. Verify.
    - `docker compose ps` shows n8n and dependencies running, with Postgres healthy where applicable.
    - `curl -I` or `curl -L` reaches n8n setup or signin.
    - For Ollama, `/api/tags` lists the expected model or model pull is still in progress.
    - Check recent logs for n8n startup, database connection, and obvious errors.
    - For Tailscale, confirm `tailscale serve status` maps the `ts.net` host to `5678`, then reach `https://<machine>.<tailnet>.ts.net/setup` from another tailnet device. For Funnel, confirm `tailscale funnel status` and that the webhook URL responds from outside the tailnet.
 
-6. Report concise handoff.
+7. Report concise handoff.
    - Access URL: `http://localhost:5678` for local, or `https://<machine>.<tailnet>.ts.net` for Tailscale.
    - Install path.
    - Start, stop, status, and logs commands.
