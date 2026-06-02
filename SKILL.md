@@ -15,24 +15,56 @@ Always run an onboarding checkpoint before creating files, editing `.env`, cloni
 
 The onboarding checkpoint is mandatory for new installs and for any request that says "set up", "install", "configure", "self-host", or similar. It may be skipped only when the user has already provided all minimum intake values in the current conversation, or when the user explicitly says to use defaults without asking questions.
 
-Ask the minimum intake as a compact checklist. Keep recommended intake optional unless it changes the requested install, but include Tailscale/webhook choices in the checklist because access mode changes security and URL configuration. Do not guess about external exposure, destructive overwrite, or existing data.
+Ask the minimum intake as numbered choices, not as a free-form checklist. Each onboarding item must offer exactly three numbered options (`1`, `2`, `3`) with option `1` as the recommended default when a default is safe. Use short labels and one-line tradeoffs. If an item has more than three real variants, put the less common variants behind option `3` as "custom/advanced" and ask one follow-up after the user selects it. Keep recommended intake optional unless it changes the requested install, but include Tailscale/webhook choices in the choices because access mode changes security and URL configuration. Do not guess about external exposure, destructive overwrite, or existing data.
 
 When defaults are appropriate, ask in this shape before proceeding:
 
 ```text
-Before I create files or run Docker, confirm these choices or edit any item:
+Before I create files or run Docker, choose one option for each item.
+Reply like: 1-1, 2-2, 3-1, 4-1, 5-1, 6-1, 7-1, 8-2
 
-1. Install path: <default path>
-2. Access mode: local only / LAN / Tailscale Serve / Tailscale Funnel
-3. Host environment: <detected OS/hardware>
-4. Stack: n8n + Postgres / n8n only / AI starter kit
-5. AI runtime: no AI / Docker Ollama / host Ollama / external LLM API
-6. Ports: n8n 5678, Ollama 11434, Qdrant 6333
-7. Secrets: auto-generate / user-provided
-8. Backup expectation: none yet / manual / scheduled / off-host
+1. Install path
+   1) <default path> (recommended)
+   2) ~/docker/n8n
+   3) Custom path
+
+2. Access mode
+   1) Local only: http://localhost:5678 (recommended)
+   2) Tailscale Serve: private HTTPS inside tailnet
+   3) Public webhook/LAN/custom: requires a follow-up security check
+
+3. Host environment
+   1) <detected OS/hardware> (recommended)
+   2) Remote Linux/VPS
+   3) NAS/Windows WSL/custom
+
+4. Stack
+   1) n8n + Postgres (recommended)
+   2) n8n only
+   3) AI starter kit: Postgres + Ollama + Qdrant
+
+5. AI runtime
+   1) No AI (recommended)
+   2) Host Ollama or external LLM API
+   3) Docker Ollama
+
+6. Ports
+   1) Defaults: n8n 5678, Ollama 11434, Qdrant 6333 (recommended)
+   2) Change n8n port only
+   3) Custom all relevant ports
+
+7. Secrets
+   1) Auto-generate strong secrets (recommended)
+   2) I will provide secrets
+   3) Preserve existing .env secrets
+
+8. Backup expectation
+   1) Manual backup instructions after install (recommended)
+   2) Scheduled local backup
+   3) Off-host backup plan
 ```
 
-If the user confirms the checklist, proceed without asking the same questions again.
+If the user replies with option numbers, resolve the selections and proceed without asking the same questions again. If the user picks a `custom`, `advanced`, public exposure, or existing-secret option, ask only the necessary follow-up question(s) for those selected items.
 
 Minimum intake:
 
@@ -93,7 +125,7 @@ For Tailscale remote access:
 ## Workflow
 
 1. Run the mandatory onboarding checkpoint.
-   - Present the minimum intake checklist with proposed defaults.
+   - Present the minimum intake as numbered `1/2/3` choices with proposed defaults.
    - Wait for confirmation or corrections before creating files, cloning repositories, writing `.env`, or running Docker/Tailscale commands.
    - If the user already supplied all minimum intake values or explicitly asked to use defaults without questions, state that the checkpoint is satisfied and proceed.
 
