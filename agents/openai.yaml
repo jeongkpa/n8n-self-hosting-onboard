@@ -1,4 +1,4 @@
 interface:
   display_name: "n8n Self Hosting Onboard"
-  short_description: "Install and verify n8n Docker hosting"
+  short_description: "Install, operate, and back up self-hosted n8n (Docker Compose)"
   default_prompt: "Use $n8n-self-hosting-onboard to install n8n with Docker Compose on this machine."
